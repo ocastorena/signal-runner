@@ -48,6 +48,29 @@ Rewards:
 - `npm run preview` - preview production build
 - `npm run e2e` - run Playwright smoke test
 
+## CI/CD (GitHub Actions + Pages)
+
+This repo now includes:
+
+- CI workflow: `/Users/omar/Developer/code-projects/signal-runner/.github/workflows/ci.yml`
+- Deploy workflow: `/Users/omar/Developer/code-projects/signal-runner/.github/workflows/deploy-pages.yml`
+
+Behavior:
+
+- CI runs on push to `main` and on pull requests
+- CI executes `lint`, `test:run`, and `build`
+- CD deploys `dist/` to GitHub Pages on push to `main`
+
+Required GitHub repo setting:
+
+1. Go to `Settings` -> `Pages`
+2. Under `Build and deployment`, set `Source` to `GitHub Actions`
+
+Notes:
+
+- `vite.config.ts` is configured to set the correct `base` path automatically when running in GitHub Actions.
+- For local development, base path remains `/`.
+
 ## Run Locally
 
 ```bash

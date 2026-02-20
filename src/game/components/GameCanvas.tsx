@@ -60,7 +60,6 @@ const getLanePosition = (
 
 const TileMesh = ({ tile }: { tile: RunnerTile }) => {
   const center = getTileCenter(tile)
-  const right = headingToRight(tile.heading)
   const yaw = headingToYaw(tile.heading)
 
   const turnBeaconPosition = tile.requiredTurn
@@ -108,29 +107,6 @@ const TileMesh = ({ tile }: { tile: RunnerTile }) => {
           <meshBasicMaterial color="#9cf8ff" transparent opacity={0.85} />
         </mesh>
       ) : null}
-
-      <mesh
-        position={[
-          center[0] + right[0] * (RUNNER_BALANCE.trackWidth / 2 + 0.9),
-          1.15,
-          center[2] + right[2] * (RUNNER_BALANCE.trackWidth / 2 + 0.9),
-        ]}
-        rotation={[0, yaw, 0]}
-      >
-        <boxGeometry args={[0.55, 2.3 + ((tile.id * 0.7) % 2.2), tile.length * 0.9]} />
-        <meshStandardMaterial color="#0d1b2c" emissive="#153049" emissiveIntensity={0.2} />
-      </mesh>
-      <mesh
-        position={[
-          center[0] - right[0] * (RUNNER_BALANCE.trackWidth / 2 + 0.9),
-          1.15,
-          center[2] - right[2] * (RUNNER_BALANCE.trackWidth / 2 + 0.9),
-        ]}
-        rotation={[0, yaw, 0]}
-      >
-        <boxGeometry args={[0.55, 2.3 + ((tile.id * 1.13) % 2.2), tile.length * 0.9]} />
-        <meshStandardMaterial color="#0d1b2c" emissive="#153049" emissiveIntensity={0.2} />
-      </mesh>
     </group>
   )
 }

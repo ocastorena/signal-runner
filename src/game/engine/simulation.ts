@@ -58,81 +58,76 @@ const queueTurn = (state: GameState, turn: TurnDirection): void => {
   state.track.queuedTurn = turn
 }
 
+const moveLaneOrQueueTurn = (
+  state: GameState,
+  turn: TurnDirection,
+  laneDelta: number,
+): void => {
+  if (isTurnWindowOpen(state)) {
+    queueTurn(state, turn)
+    return
+  }
+
+  const nextLane = toLane(state.player.laneTarget + laneDelta)
+  if (nextLane !== state.player.laneTarget) {
+    state.player.laneTarget = nextLane
+    pushEvent(state, 'lane')
+  }
+}
+
+const tryJump = (state: GameState): void => {
+  const grounded = state.player.height <= 0.01
+  if (grounded && state.player.slideRemaining <= 0) {
+    state.player.verticalVelocity = RUNNER_BALANCE.jumpVelocity
+    pushEvent(state, 'jump')
+  }
+}
+
+const trySlide = (state: GameState): void => {
+  const grounded = state.player.height <= 0.1
+  if (grounded && state.player.slideRemaining <= 0) {
+    state.player.slideRemaining = RUNNER_BALANCE.slideDuration
+    pushEvent(state, 'slide')
+  }
+}
+
 const processCommand = (state: GameState, command: GameCommand): void => {
+  if (command.type === 'PauseRun') {
+    if (state.run.status === 'running') {
+      state.run.status = 'paused'
+    }
+    return
+  }
+
+  if (command.type === 'ResumeRun') {
+    if (state.run.status === 'paused') {
+      state.run.status = 'running'
+    }
+    return
+  }
+
+  if (state.run.status !== 'running') {
+    return
+  }
+
   switch (command.type) {
     case 'MoveLeft': {
-      if (state.run.status !== 'running') {
-        return
-      }
-
-      if (isTurnWindowOpen(state)) {
-        queueTurn(state, -1)
-        return
-      }
-
-      const nextLane = toLane(state.player.laneTarget - 1)
-      if (nextLane !== state.player.laneTarget) {
-        state.player.laneTarget = nextLane
-        pushEvent(state, 'lane')
-      }
+      moveLaneOrQueueTurn(state, 1, 1)
       return
     }
 
     case 'MoveRight': {
-      if (state.run.status !== 'running') {
-        return
-      }
-
-      if (isTurnWindowOpen(state)) {
-        queueTurn(state, 1)
-        return
-      }
-
-      const nextLane = toLane(state.player.laneTarget + 1)
-      if (nextLane !== state.player.laneTarget) {
-        state.player.laneTarget = nextLane
-        pushEvent(state, 'lane')
-      }
+      moveLaneOrQueueTurn(state, -1, -1)
       return
     }
 
     case 'Jump': {
-      if (state.run.status !== 'running') {
-        return
-      }
-
-      const grounded = state.player.height <= 0.01
-      if (grounded && state.player.slideRemaining <= 0) {
-        state.player.verticalVelocity = RUNNER_BALANCE.jumpVelocity
-        pushEvent(state, 'jump')
-      }
+      tryJump(state)
       return
     }
 
     case 'Slide': {
-      if (state.run.status !== 'running') {
-        return
-      }
-
-      const grounded = state.player.height <= 0.1
-      if (grounded && state.player.slideRemaining <= 0) {
-        state.player.slideRemaining = RUNNER_BALANCE.slideDuration
-        pushEvent(state, 'slide')
-      }
-      return
-    }
-
-    case 'PauseRun': {
-      if (state.run.status === 'running') {
-        state.run.status = 'paused'
-      }
-      return
-    }
-
-    case 'ResumeRun': {
-      if (state.run.status === 'paused') {
-        state.run.status = 'running'
-      }
+      trySlide(state)
       return
     }
 

@@ -1,4 +1,4 @@
-import { RUNNER_BALANCE } from '../../shared/constants'
+import { RUNNER_BALANCE } from '@/shared/constants'
 import type {
   GameState,
   Heading,
@@ -6,7 +6,7 @@ import type {
   RunnerTile,
   TurnDirection,
   Vector3Tuple,
-} from '../../shared/types'
+} from '@/shared/types'
 
 const LANE_VALUES: Lane[] = [-1, 0, 1]
 

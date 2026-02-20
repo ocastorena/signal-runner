@@ -1,8 +1,12 @@
-import { useEffect, useRef } from 'react'
-import { useGameStore } from '../game/core/store'
-import { GameCanvas } from '../rendering/GameCanvas'
-import { GameHud } from '../ui/GameHud'
-import { useAudioDirector } from '../audio/useAudioDirector'
+import { Suspense, lazy, useEffect, useRef } from 'react'
+import { useGameStore } from '@/game/engine/store'
+import { useAudioDirector } from '@/game/hooks/useAudioDirector'
+import { GameHud } from '@/game/components/GameHud'
+
+const GameCanvas = lazy(async () => {
+  const module = await import('@/game/components/GameCanvas')
+  return { default: module.GameCanvas }
+})
 
 export const GameView = () => {
   const runStatus = useGameStore((store) => store.game.run.status)
@@ -101,7 +105,9 @@ export const GameView = () => {
       }}
     >
       <div className="canvas-shell">
-        <GameCanvas />
+        <Suspense fallback={<div className="canvas-loading">Rendering network...</div>}>
+          <GameCanvas />
+        </Suspense>
       </div>
       <GameHud />
     </div>

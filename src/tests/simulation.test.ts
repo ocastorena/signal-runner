@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialGameState } from '../game/core/state'
-import { stepSimulation } from '../game/core/simulation'
-import type { GameState } from '../shared/types'
+import { createInitialGameState } from '@/game/engine/state'
+import { stepSimulation } from '@/game/engine/simulation'
+import type { GameState } from '@/shared/types'
 
 const stepForSeconds = (state: GameState, seconds: number) => {
   const dt = 1 / 60

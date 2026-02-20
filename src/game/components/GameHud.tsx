@@ -1,5 +1,5 @@
-import { useGameStore } from '../game/core/store'
-import { getTurnPrompt } from '../game/core/selectors'
+import { getTurnPrompt } from '@/game/engine/selectors'
+import { useGameStore } from '@/game/engine/store'
 
 const IntegrityDots = ({ count }: { count: number }) => {
   const dots = [0, 1, 2]

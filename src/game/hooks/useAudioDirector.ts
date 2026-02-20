@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useGameStore } from '../game/core/store'
+import { useGameStore } from '@/game/engine/store'
 
 const resumeIfNeeded = async (context: AudioContext) => {
   if (context.state === 'suspended') {

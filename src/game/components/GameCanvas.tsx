@@ -4,8 +4,8 @@ import { Line, PerspectiveCamera, Sparkles, Trail } from '@react-three/drei'
 import { Bloom, ChromaticAberration, EffectComposer, Noise } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import { Vector2, Vector3 } from 'three'
-import { GameLoop } from '../game/core/GameLoop'
-import { headingToForward, headingToRight } from '../game/core/generation'
+import { GameLoop } from '@/game/engine/GameLoop'
+import { headingToForward, headingToRight } from '@/game/engine/generation'
 import {
   getCurrentTile,
   getPlayerWorldPosition,
@@ -13,10 +13,10 @@ import {
   getVisibleTiles,
   getVisibleTokens,
   isSliding,
-} from '../game/core/selectors'
-import { useGameStore } from '../game/core/store'
-import { RUNNER_BALANCE } from '../shared/constants'
-import type { Heading, RunnerObstacle, RunnerTile, RunnerToken, Vector3Tuple } from '../shared/types'
+} from '@/game/engine/selectors'
+import { useGameStore } from '@/game/engine/store'
+import { RUNNER_BALANCE } from '@/shared/constants'
+import type { Heading, RunnerObstacle, RunnerTile, RunnerToken, Vector3Tuple } from '@/shared/types'
 
 const headingToYaw = (heading: Heading): number => {
   switch (heading) {

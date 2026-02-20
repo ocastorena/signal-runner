@@ -1,5 +1,5 @@
-import { RUNNER_BALANCE } from '../../shared/constants'
-import { clamp, lerp } from '../../shared/math'
+import { RUNNER_BALANCE } from '@/shared/constants'
+import { clamp, lerp } from '@/shared/math'
 import type {
   GameCommand,
   GameState,
@@ -7,7 +7,7 @@ import type {
   ObstacleType,
   RunnerEventType,
   TurnDirection,
-} from '../../shared/types'
+} from '@/shared/types'
 import { ensureTrackAhead } from './generation'
 import { getCurrentTile } from './selectors'
 

@@ -1,11 +1,11 @@
-import { RUNNER_BALANCE } from '../../shared/constants'
+import { RUNNER_BALANCE } from '@/shared/constants'
 import type {
   GameState,
   RunnerObstacle,
   RunnerTile,
   RunnerToken,
   Vector3Tuple,
-} from '../../shared/types'
+} from '@/shared/types'
 import { headingToForward, headingToRight } from './generation'
 
 export const getCurrentTile = (state: GameState): RunnerTile =>

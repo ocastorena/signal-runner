@@ -1,8 +1,8 @@
 import { produce } from 'immer'
 import { create } from 'zustand'
+import type { GameCommand, GameState } from '@/shared/types'
 import { createInitialGameState } from './state'
 import { stepSimulation } from './simulation'
-import type { GameCommand, GameState } from '../../shared/types'
 
 interface GameStore {
   game: GameState

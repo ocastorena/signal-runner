@@ -1,5 +1,5 @@
-import { RUNNER_BALANCE } from '../../shared/constants'
-import type { GameState } from '../../shared/types'
+import { RUNNER_BALANCE } from '@/shared/constants'
+import type { GameState } from '@/shared/types'
 import { bootstrapTrack } from './generation'
 
 export const createInitialGameState = (): GameState => {

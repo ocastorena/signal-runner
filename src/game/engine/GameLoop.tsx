@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { RUNNER_BALANCE } from '../../shared/constants'
+import { RUNNER_BALANCE } from '@/shared/constants'
 import { useGameStore } from './store'
 
 export const GameLoop = (): null => {

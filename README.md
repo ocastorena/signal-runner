@@ -2,6 +2,8 @@
 
 Signal Runner is a single-player browser game inspired by Temple Run, re-themed as a packet escaping through a hostile 3D network.
 
+Live demo: [https://ocastorena.github.io/signal-runner/](https://ocastorena.github.io/signal-runner/)
+
 ## Gameplay
 
 - Continuous forward movement through a procedural network corridor

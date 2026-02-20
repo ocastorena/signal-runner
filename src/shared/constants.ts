@@ -1,67 +1,30 @@
-import type { AbilityId } from './types'
-
-export const GAME_BALANCE = {
+export const RUNNER_BALANCE = {
   fixedStepSeconds: 1 / 60,
   maxFrameSeconds: 0.125,
-  maxIntegrity: 100,
-  firewallDamagePerSecond: 18,
-  pursuerDamagePerSecond: 10,
-  encryptDamageMultiplier: 0.35,
-  burstSpeedMultiplier: 1.8,
-  latencySpeedMultiplier: 0.58,
-  burstDetectionMultiplier: 1.45,
-  decoyDetectionMultiplier: 0.35,
-  detectionDecayPerSecond: 0.2,
-  detectionGainPerSecond: 0.7,
-  pursuerThreshold: 0.65,
-  congestionGlobalGrowthPerSecond: 0.035,
-  congestionTravelGrowthPerSecond: 0.28,
-  congestionDecayPerSecond: 0.09,
-  congestionTravelSlowdown: 0.25,
-  congestionCostWeight: 0.75,
-  firewallCostPenalty: 1.8,
-  latencyCostPenalty: 1.25,
-  pinCostMultiplier: 0.62,
-  baseCompletionScore: 1000,
-  baseTimeScoreBudget: 2200,
-  tokenScore: 240,
-  noDamageBonus: 350,
-  noRerouteBonus: 450,
-  speedrunBonus: 350,
-  eventBufferSize: 48,
+  tileLength: 8,
+  trackWidth: 6.4,
+  laneWidth: 1.75,
+  initialTiles: 70,
+  tilesAheadTarget: 50,
+  minTurnInterval: 7,
+  maxTurnInterval: 13,
+  turnDecisionWindow: 2.6,
+  baseSpeed: 9,
+  maxSpeed: 24,
+  speedAcceleration: 0.42,
+  jumpVelocity: 8.1,
+  gravity: -22,
+  slideDuration: 0.8,
+  collisionInvulnerability: 1.0,
+  stumbleSlowDuration: 0.55,
+  stumbleSpeedMultiplier: 0.66,
+  maxIntegrity: 3,
+  tokenScore: 120,
+  distanceScoreRate: 14,
+  turnScore: 70,
+  obstacleHitWindow: 0.42,
+  tokenPickupWindow: 0.48,
+  laneTolerance: 0.42,
+  firewallClearHeight: 0.62,
+  eventBufferSize: 72,
 } as const
-
-export const ABILITY_DEFS: Record<
-  AbilityId,
-  {
-    label: string
-    duration: number
-    cooldown: number
-    description: string
-  }
-> = {
-  encrypt: {
-    label: 'Encrypt',
-    duration: 4,
-    cooldown: 14,
-    description: 'Reduce incoming damage and pass firewalls safely.',
-  },
-  decoy: {
-    label: 'Decoy',
-    duration: 5,
-    cooldown: 16,
-    description: 'Divert scanner focus and reduce detection gain.',
-  },
-  burst: {
-    label: 'Burst',
-    duration: 2.2,
-    cooldown: 10,
-    description: 'Move faster with higher detection risk.',
-  },
-}
-
-export const ABILITY_KEYS: Record<AbilityId, string> = {
-  encrypt: 'Q',
-  decoy: 'W',
-  burst: 'E',
-}

@@ -1,80 +1,81 @@
-import type { AbilityId, GameState, LevelNode, Vector3Tuple } from '../../shared/types'
-import { mixVec3 } from '../../shared/math'
+import { RUNNER_BALANCE } from '../../shared/constants'
+import type {
+  GameState,
+  RunnerObstacle,
+  RunnerTile,
+  RunnerToken,
+  Vector3Tuple,
+} from '../../shared/types'
+import { headingToForward, headingToRight } from './generation'
 
-export const getNodeById = (
+export const getCurrentTile = (state: GameState): RunnerTile =>
+  state.track.tiles[state.track.currentTileIndex]
+
+export const getPlayerWorldPosition = (state: GameState): Vector3Tuple => {
+  const tile = getCurrentTile(state)
+  const forward = headingToForward(tile.heading)
+  const right = headingToRight(tile.heading)
+
+  return [
+    tile.start[0] +
+      forward[0] * state.track.distanceInTile +
+      right[0] * state.player.lanePosition * RUNNER_BALANCE.laneWidth,
+    0.42 + state.player.height,
+    tile.start[2] +
+      forward[2] * state.track.distanceInTile +
+      right[2] * state.player.lanePosition * RUNNER_BALANCE.laneWidth,
+  ]
+}
+
+export const isSliding = (state: GameState): boolean => state.player.slideRemaining > 0
+
+export const getTurnPrompt = (state: GameState): string | null => {
+  const tile = getCurrentTile(state)
+  if (!tile.requiredTurn) {
+    return null
+  }
+
+  if (!state.track.decisionOpen) {
+    return null
+  }
+
+  return tile.requiredTurn === -1 ? 'TURN LEFT' : 'TURN RIGHT'
+}
+
+export const getVisibleTiles = (
   state: GameState,
-  nodeId: string,
-): LevelNode | undefined => state.level.nodes.find((node) => node.id === nodeId)
-
-export const getEdgeById = (state: GameState, edgeId: string) =>
-  state.level.edges.find((edge) => edge.id === edgeId)
-
-export const getPacketWorldPosition = (state: GameState): Vector3Tuple => {
-  const traversal = state.packet.traversal
-  if (!traversal) {
-    return getNodeById(state, state.packet.currentNodeId)?.position ?? [0, 0, 0]
-  }
-
-  const fromPosition = getNodeById(state, traversal.fromNodeId)?.position
-  const toPosition = getNodeById(state, traversal.toNodeId)?.position
-
-  if (!fromPosition || !toPosition) {
-    return [0, 0, 0]
-  }
-
-  return mixVec3(fromPosition, toPosition, traversal.progress)
+  behind: number,
+  ahead: number,
+): RunnerTile[] => {
+  const start = Math.max(0, state.track.currentTileIndex - behind)
+  const end = Math.min(state.track.tiles.length, state.track.currentTileIndex + ahead)
+  return state.track.tiles.slice(start, end)
 }
 
-export const getCurrentObjectiveNodeId = (state: GameState): string => {
-  const outstandingCheckpointId = state.level.requiredCheckpointIds.find(
-    (checkpointId) => !state.world.visitedCheckpointIds.includes(checkpointId),
+export const getVisibleObstacles = (
+  state: GameState,
+  behind: number,
+  ahead: number,
+): RunnerObstacle[] => {
+  const minIndex = Math.max(0, state.track.currentTileIndex - behind)
+  const maxIndex = state.track.currentTileIndex + ahead
+  return state.obstacles.filter(
+    (obstacle) =>
+      !obstacle.resolved &&
+      obstacle.tileIndex >= minIndex &&
+      obstacle.tileIndex <= maxIndex,
   )
-
-  return outstandingCheckpointId ?? state.level.goalNodeId
 }
 
-export const hasAllRequiredCheckpoints = (state: GameState): boolean =>
-  state.level.requiredCheckpointIds.every((checkpointId) =>
-    state.world.visitedCheckpointIds.includes(checkpointId),
+export const getVisibleTokens = (
+  state: GameState,
+  behind: number,
+  ahead: number,
+): RunnerToken[] => {
+  const minIndex = Math.max(0, state.track.currentTileIndex - behind)
+  const maxIndex = state.track.currentTileIndex + ahead
+  return state.tokens.filter(
+    (token) =>
+      !token.collected && token.tileIndex >= minIndex && token.tileIndex <= maxIndex,
   )
-
-export const getRoutePolyline = (state: GameState): Vector3Tuple[] => {
-  if (state.routing.routeNodeIds.length < 2 && !state.packet.traversal) {
-    return []
-  }
-
-  const points: Vector3Tuple[] = []
-
-  if (state.packet.traversal) {
-    points.push(getPacketWorldPosition(state))
-
-    const toNode = getNodeById(state, state.packet.traversal.toNodeId)
-    if (toNode) {
-      points.push(toNode.position)
-    }
-
-    for (let index = 1; index < state.routing.routeNodeIds.length; index += 1) {
-      const node = getNodeById(state, state.routing.routeNodeIds[index])
-      if (node) {
-        points.push(node.position)
-      }
-    }
-
-    return points
-  }
-
-  for (const nodeId of state.routing.routeNodeIds) {
-    const node = getNodeById(state, nodeId)
-    if (node) {
-      points.push(node.position)
-    }
-  }
-
-  return points
 }
-
-export const isAbilityReady = (state: GameState, abilityId: AbilityId): boolean =>
-  state.abilities[abilityId].cooldownRemaining <= 0
-
-export const isAbilityActive = (state: GameState, abilityId: AbilityId): boolean =>
-  state.abilities[abilityId].activeRemaining > 0

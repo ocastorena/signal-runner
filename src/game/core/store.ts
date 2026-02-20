@@ -2,18 +2,23 @@ import { produce } from 'immer'
 import { create } from 'zustand'
 import { createInitialGameState } from './state'
 import { stepSimulation } from './simulation'
-import type { AbilityId, GameCommand, GameState } from '../../shared/types'
+import type { GameCommand, GameState } from '../../shared/types'
 
 interface GameStore {
   game: GameState
   enqueueCommand: (command: GameCommand) => void
-  setDestination: (nodeId: string) => void
-  togglePin: (edgeId: string) => void
-  useAbility: (abilityId: AbilityId) => void
+  moveLeft: () => void
+  moveRight: () => void
+  jump: () => void
+  slide: () => void
   pauseRun: () => void
   resumeRun: () => void
   resetRun: () => void
   step: (dtSeconds: number) => void
+}
+
+const pushCommand = (store: GameStore, command: GameCommand) => {
+  store.game.commandQueue.push(command)
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -21,49 +26,54 @@ export const useGameStore = create<GameStore>((set) => ({
   enqueueCommand: (command) => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push(command)
+        pushCommand(store, command)
       }),
     )
   },
-  setDestination: (nodeId) => {
+  moveLeft: () => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push({ type: 'SetDestination', nodeId })
+        pushCommand(store, { type: 'MoveLeft' })
       }),
     )
   },
-  togglePin: (edgeId) => {
+  moveRight: () => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push({ type: 'TogglePin', edgeId })
+        pushCommand(store, { type: 'MoveRight' })
       }),
     )
   },
-  useAbility: (abilityId) => {
+  jump: () => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push({ type: 'UseAbility', abilityId })
+        pushCommand(store, { type: 'Jump' })
+      }),
+    )
+  },
+  slide: () => {
+    set(
+      produce((store: GameStore) => {
+        pushCommand(store, { type: 'Slide' })
       }),
     )
   },
   pauseRun: () => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push({ type: 'PauseRun' })
+        pushCommand(store, { type: 'PauseRun' })
       }),
     )
   },
   resumeRun: () => {
     set(
       produce((store: GameStore) => {
-        store.game.commandQueue.push({ type: 'ResumeRun' })
+        pushCommand(store, { type: 'ResumeRun' })
       }),
     )
   },
   resetRun: () => {
-    set(() => ({
-      game: createInitialGameState(),
-    }))
+    set(() => ({ game: createInitialGameState() }))
   },
   step: (dtSeconds) => {
     set(

@@ -1,71 +1,51 @@
-import { network01 } from '../levels/network01'
-import { GAME_BALANCE } from '../../shared/constants'
-import type {
-  AbilityState,
-  GameState,
-  LevelDefinition,
-  RoutingState,
-  RunState,
-  WorldState,
-} from '../../shared/types'
+import { RUNNER_BALANCE } from '../../shared/constants'
+import type { GameState } from '../../shared/types'
+import { bootstrapTrack } from './generation'
 
-const makeInitialAbilities = (): AbilityState => ({
-  encrypt: { cooldownRemaining: 0, activeRemaining: 0 },
-  decoy: { cooldownRemaining: 0, activeRemaining: 0 },
-  burst: { cooldownRemaining: 0, activeRemaining: 0 },
-})
-
-const makeInitialRouting = (level: LevelDefinition): RoutingState => ({
-  destinationNodeId: null,
-  routeNodeIds: [level.startNodeId],
-  routeEdgeIds: [],
-  pinnedEdgeIds: [],
-})
-
-const makeInitialWorld = (level: LevelDefinition): WorldState => {
-  const congestionByEdgeId: Record<string, number> = {}
-
-  for (const edge of level.edges) {
-    if (edge.tags.includes('congestion')) {
-      congestionByEdgeId[edge.id] = 0
-    }
+export const createInitialGameState = (): GameState => {
+  const state: GameState = {
+    player: {
+      laneTarget: 0,
+      lanePosition: 0,
+      height: 0,
+      verticalVelocity: 0,
+      slideRemaining: 0,
+      integrity: RUNNER_BALANCE.maxIntegrity,
+      invulnerableRemaining: 0,
+    },
+    track: {
+      tiles: [],
+      currentTileIndex: 0,
+      distanceInTile: 0,
+      queuedTurn: 0,
+      decisionOpen: false,
+      seed: 1337,
+      nextTileId: 0,
+      nextObstacleId: 0,
+      nextTokenId: 0,
+      nextTurnIn: 8,
+      generationCursor: [0, 0, 0],
+      generationHeading: 0,
+    },
+    obstacles: [],
+    tokens: [],
+    run: {
+      status: 'running',
+      elapsedSeconds: 0,
+      distance: 0,
+      speed: RUNNER_BALANCE.baseSpeed,
+      score: 0,
+      tokens: 0,
+      collisions: 0,
+      topSpeed: RUNNER_BALANCE.baseSpeed,
+      failureReason: null,
+    },
+    timeSeconds: 0,
+    events: [],
+    nextEventId: 1,
+    commandQueue: [],
   }
 
-  return {
-    congestionByEdgeId,
-    detectionLevel: 0,
-    pursuersActive: false,
-    visitedCheckpointIds: [],
-    collectedTokenNodeIds: [],
-  }
+  bootstrapTrack(state)
+  return state
 }
-
-const makeInitialRun = (): RunState => ({
-  status: 'running',
-  elapsedSeconds: 0,
-  latencyPenalty: 0,
-  rerouteCount: 0,
-  destinationSetCount: 0,
-  tookDamage: false,
-  nextNetworkUnlocked: false,
-  score: null,
-})
-
-export const createInitialGameState = (
-  level: LevelDefinition = network01,
-): GameState => ({
-  level,
-  packet: {
-    currentNodeId: level.startNodeId,
-    traversal: null,
-    integrity: GAME_BALANCE.maxIntegrity,
-  },
-  routing: makeInitialRouting(level),
-  world: makeInitialWorld(level),
-  abilities: makeInitialAbilities(),
-  run: makeInitialRun(),
-  timeSeconds: 0,
-  events: [],
-  nextEventId: 1,
-  commandQueue: [],
-})

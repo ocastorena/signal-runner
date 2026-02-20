@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useGameStore } from '../game/core/store'
 
-const safeResume = async (context: AudioContext) => {
+const resumeIfNeeded = async (context: AudioContext) => {
   if (context.state === 'suspended') {
     await context.resume()
   }
 }
 
-const createEnvelope = (
+const playTone = (
   context: AudioContext,
   frequency: number,
   durationSeconds: number,
@@ -35,43 +35,42 @@ export const useAudioDirector = (): void => {
   const events = useGameStore((store) => store.game.events)
   const status = useGameStore((store) => store.game.run.status)
 
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const contextRef = useRef<AudioContext | null>(null)
   const ambientOscillatorRef = useRef<OscillatorNode | null>(null)
   const ambientGainRef = useRef<GainNode | null>(null)
   const lastEventIdRef = useRef(0)
 
   useEffect(() => {
-    const unlockAudio = async () => {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext()
+    const unlock = async () => {
+      if (!contextRef.current) {
+        contextRef.current = new AudioContext()
       }
 
-      await safeResume(audioContextRef.current)
+      await resumeIfNeeded(contextRef.current)
     }
 
-    window.addEventListener('pointerdown', unlockAudio, { once: true })
-
+    window.addEventListener('pointerdown', unlock, { once: true })
     return () => {
-      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('pointerdown', unlock)
     }
   }, [])
 
   useEffect(() => {
-    const context = audioContextRef.current
+    const context = contextRef.current
     if (!context) {
       return
     }
 
-    const ensureAmbient = async () => {
-      await safeResume(context)
+    const syncAmbient = async () => {
+      await resumeIfNeeded(context)
 
       if (status === 'running' && !ambientOscillatorRef.current) {
         const oscillator = context.createOscillator()
         const gain = context.createGain()
 
         oscillator.type = 'triangle'
-        oscillator.frequency.value = 63
-        gain.gain.value = 0.012
+        oscillator.frequency.value = 72
+        gain.gain.value = 0.011
 
         oscillator.connect(gain)
         gain.connect(context.destination)
@@ -90,42 +89,42 @@ export const useAudioDirector = (): void => {
       }
     }
 
-    void ensureAmbient()
+    void syncAmbient()
   }, [status])
 
   useEffect(() => {
-    const context = audioContextRef.current
+    const context = contextRef.current
     if (!context) {
       return
     }
 
     const nextEvents = events.filter((event) => event.id > lastEventIdRef.current)
-    if (nextEvents.length < 1) {
+    if (nextEvents.length === 0) {
       return
     }
 
-    const playEvents = async () => {
-      await safeResume(context)
+    const play = async () => {
+      await resumeIfNeeded(context)
 
       for (const event of nextEvents) {
         switch (event.type) {
-          case 'ability':
-            createEnvelope(context, 520, 0.16, 0.07, 'square')
-            break
-          case 'reroute':
-            createEnvelope(context, 330, 0.12, 0.06, 'sawtooth')
-            break
-          case 'pin':
-            createEnvelope(context, 260, 0.1, 0.045, 'triangle')
-            break
           case 'token':
-            createEnvelope(context, 700, 0.24, 0.08, 'sine')
+            playTone(context, 690, 0.2, 0.08, 'sine')
             break
-          case 'success':
-            createEnvelope(context, 760, 0.38, 0.11, 'triangle')
+          case 'collision':
+            playTone(context, 140, 0.25, 0.1, 'sawtooth')
             break
-          case 'failure':
-            createEnvelope(context, 110, 0.44, 0.1, 'sawtooth')
+          case 'jump':
+            playTone(context, 430, 0.11, 0.05, 'triangle')
+            break
+          case 'slide':
+            playTone(context, 270, 0.12, 0.04, 'square')
+            break
+          case 'turn':
+            playTone(context, 520, 0.13, 0.06, 'triangle')
+            break
+          case 'gameover':
+            playTone(context, 120, 0.4, 0.09, 'sawtooth')
             break
           default:
             break
@@ -135,7 +134,7 @@ export const useAudioDirector = (): void => {
       }
     }
 
-    void playEvents()
+    void play()
   }, [events])
 
   useEffect(
@@ -143,10 +142,10 @@ export const useAudioDirector = (): void => {
       ambientOscillatorRef.current?.stop()
       ambientOscillatorRef.current?.disconnect()
       ambientGainRef.current?.disconnect()
-      void audioContextRef.current?.close()
+      void contextRef.current?.close()
       ambientOscillatorRef.current = null
       ambientGainRef.current = null
-      audioContextRef.current = null
+      contextRef.current = null
     },
     [],
   )

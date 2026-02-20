@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { GAME_BALANCE } from '../../shared/constants'
+import { RUNNER_BALANCE } from '../../shared/constants'
 import { useGameStore } from './store'
 
 export const GameLoop = (): null => {
@@ -8,11 +8,11 @@ export const GameLoop = (): null => {
   const accumulatorRef = useRef(0)
 
   useFrame((_state, deltaSeconds) => {
-    accumulatorRef.current += Math.min(deltaSeconds, GAME_BALANCE.maxFrameSeconds)
+    accumulatorRef.current += Math.min(deltaSeconds, RUNNER_BALANCE.maxFrameSeconds)
 
-    while (accumulatorRef.current >= GAME_BALANCE.fixedStepSeconds) {
-      step(GAME_BALANCE.fixedStepSeconds)
-      accumulatorRef.current -= GAME_BALANCE.fixedStepSeconds
+    while (accumulatorRef.current >= RUNNER_BALANCE.fixedStepSeconds) {
+      step(RUNNER_BALANCE.fixedStepSeconds)
+      accumulatorRef.current -= RUNNER_BALANCE.fixedStepSeconds
     }
   })
 

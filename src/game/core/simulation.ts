@@ -1,213 +1,124 @@
-import { ABILITY_DEFS, GAME_BALANCE } from '../../shared/constants'
-import { clamp, distance3 } from '../../shared/math'
-import type { AbilityId, GameCommand, GameState, ScoreBreakdown } from '../../shared/types'
-import { findRoute } from '../graph/pathfinding'
-import {
-  getEdgeById,
-  getNodeById,
-  getPacketWorldPosition,
-  hasAllRequiredCheckpoints,
-  isAbilityActive,
-} from './selectors'
+import { RUNNER_BALANCE } from '../../shared/constants'
+import { clamp, lerp } from '../../shared/math'
+import type {
+  GameCommand,
+  GameState,
+  Lane,
+  ObstacleType,
+  RunnerEventType,
+  TurnDirection,
+} from '../../shared/types'
+import { ensureTrackAhead } from './generation'
+import { getCurrentTile } from './selectors'
 
-const pushEvent = (
-  state: GameState,
-  type: 'ability' | 'reroute' | 'pin' | 'token' | 'success' | 'failure',
-  abilityId?: AbilityId,
-): void => {
+const pushEvent = (state: GameState, type: RunnerEventType): void => {
   state.events.push({
     id: state.nextEventId,
     at: state.timeSeconds,
     type,
-    abilityId,
   })
   state.nextEventId += 1
 
-  if (state.events.length > GAME_BALANCE.eventBufferSize) {
-    state.events.splice(0, state.events.length - GAME_BALANCE.eventBufferSize)
+  if (state.events.length > RUNNER_BALANCE.eventBufferSize) {
+    state.events.splice(0, state.events.length - RUNNER_BALANCE.eventBufferSize)
   }
 }
 
-export const computeScore = (
-  state: Pick<GameState, 'run' | 'world' | 'packet' | 'level'>,
-  completed: boolean,
-): ScoreBreakdown => {
-  const noDamage = !state.run.tookDamage
-  const noReroutes = state.run.rerouteCount === 0
-  const speedrun = completed && state.run.elapsedSeconds <= state.level.speedrunTargetSeconds
-
-  const base = completed
-    ? GAME_BALANCE.baseCompletionScore
-    : Math.round(GAME_BALANCE.baseCompletionScore * 0.25)
-
-  const timePenalty = state.run.elapsedSeconds * 18 + state.run.latencyPenalty * 30
-  const time = Math.max(0, Math.round(GAME_BALANCE.baseTimeScoreBudget - timePenalty))
-  const integrity = Math.max(0, Math.round(state.packet.integrity * 12))
-  const tokens = state.world.collectedTokenNodeIds.length * GAME_BALANCE.tokenScore
-
-  let challenge = 0
-  if (noDamage) {
-    challenge += GAME_BALANCE.noDamageBonus
+const toLane = (value: number): Lane => {
+  if (value <= -1) {
+    return -1
   }
-  if (noReroutes) {
-    challenge += GAME_BALANCE.noRerouteBonus
+  if (value >= 1) {
+    return 1
   }
-  if (speedrun) {
-    challenge += GAME_BALANCE.speedrunBonus
-  }
-
-  const total = Math.max(0, base + time + integrity + tokens + challenge)
-
-  return {
-    base,
-    time,
-    integrity,
-    tokens,
-    challenge,
-    total,
-    challenges: {
-      noDamage,
-      noReroutes,
-      speedrun,
-    },
-  }
+  return 0
 }
 
-const applyDamage = (state: GameState, amount: number): void => {
-  if (state.run.status !== 'running' || amount <= 0) {
+const failRun = (state: GameState, reason: string): void => {
+  if (state.run.status !== 'running') {
     return
   }
 
-  const mitigated = isAbilityActive(state, 'encrypt')
-    ? amount * GAME_BALANCE.encryptDamageMultiplier
-    : amount
-
-  if (mitigated > 0) {
-    state.run.tookDamage = true
-    state.packet.integrity = clamp(
-      state.packet.integrity - mitigated,
-      0,
-      GAME_BALANCE.maxIntegrity,
-    )
-  }
-
-  if (state.packet.integrity <= 0 && state.run.status === 'running') {
-    state.run.status = 'failed'
-    state.run.score = computeScore(state, false)
-    pushEvent(state, 'failure')
-  }
+  state.run.status = 'failed'
+  state.run.failureReason = reason
+  state.run.score = Math.floor(state.run.score)
+  pushEvent(state, 'gameover')
 }
 
-const resolveRouteAnchorNodeId = (state: GameState): string =>
-  state.packet.traversal ? state.packet.traversal.toNodeId : state.packet.currentNodeId
-
-const recalculateRoute = (state: GameState): void => {
-  if (!state.routing.destinationNodeId) {
-    state.routing.routeNodeIds = [resolveRouteAnchorNodeId(state)]
-    state.routing.routeEdgeIds = []
-    return
+const isTurnWindowOpen = (state: GameState): boolean => {
+  const tile = getCurrentTile(state)
+  if (!tile.requiredTurn) {
+    return false
   }
 
-  const anchorNodeId = resolveRouteAnchorNodeId(state)
-  const result = findRoute(state.level, anchorNodeId, state.routing.destinationNodeId, {
-    pinnedEdgeIds: new Set(state.routing.pinnedEdgeIds),
-    congestionByEdgeId: state.world.congestionByEdgeId,
-  })
-
-  if (!result) {
-    state.routing.routeNodeIds = [anchorNodeId]
-    state.routing.routeEdgeIds = []
-    return
-  }
-
-  state.routing.routeNodeIds = result.nodeIds
-  state.routing.routeEdgeIds = result.edgeIds
+  return state.track.distanceInTile >= tile.length - RUNNER_BALANCE.turnDecisionWindow
 }
 
-const beginNextTraversal = (state: GameState): void => {
-  if (state.run.status !== 'running' || state.packet.traversal) {
-    return
-  }
-
-  if (state.routing.routeNodeIds.length < 2 || state.routing.routeEdgeIds.length < 1) {
-    return
-  }
-
-  const fromNodeId = state.routing.routeNodeIds[0]
-  const toNodeId = state.routing.routeNodeIds[1]
-  const edgeId = state.routing.routeEdgeIds[0]
-
-  if (state.packet.currentNodeId !== fromNodeId) {
-    return
-  }
-
-  state.packet.traversal = {
-    edgeId,
-    fromNodeId,
-    toNodeId,
-    progress: 0,
-  }
-
-  state.routing.routeNodeIds = state.routing.routeNodeIds.slice(1)
-  state.routing.routeEdgeIds = state.routing.routeEdgeIds.slice(1)
-}
-
-const activateAbility = (state: GameState, abilityId: AbilityId): void => {
-  const runtime = state.abilities[abilityId]
-
-  if (runtime.cooldownRemaining > 0 || state.run.status !== 'running') {
-    return
-  }
-
-  runtime.cooldownRemaining = ABILITY_DEFS[abilityId].cooldown
-  runtime.activeRemaining = ABILITY_DEFS[abilityId].duration
-  pushEvent(state, 'ability', abilityId)
+const queueTurn = (state: GameState, turn: TurnDirection): void => {
+  state.track.queuedTurn = turn
 }
 
 const processCommand = (state: GameState, command: GameCommand): void => {
   switch (command.type) {
-    case 'SetDestination': {
-      const nodeExists = Boolean(getNodeById(state, command.nodeId))
-      if (!nodeExists || state.run.status === 'failed' || state.run.status === 'success') {
+    case 'MoveLeft': {
+      if (state.run.status !== 'running') {
         return
       }
 
-      const previousDestinationId = state.routing.destinationNodeId
-      if (previousDestinationId && previousDestinationId !== command.nodeId) {
-        state.run.rerouteCount += 1
-        pushEvent(state, 'reroute')
-      }
-
-      if (previousDestinationId !== command.nodeId) {
-        state.run.destinationSetCount += 1
-      }
-
-      state.routing.destinationNodeId = command.nodeId
-      recalculateRoute(state)
-      beginNextTraversal(state)
-      return
-    }
-
-    case 'TogglePin': {
-      if (state.run.status === 'failed' || state.run.status === 'success') {
+      if (isTurnWindowOpen(state)) {
+        queueTurn(state, -1)
         return
       }
 
-      const edgeIndex = state.routing.pinnedEdgeIds.indexOf(command.edgeId)
-      if (edgeIndex >= 0) {
-        state.routing.pinnedEdgeIds.splice(edgeIndex, 1)
-      } else {
-        state.routing.pinnedEdgeIds.push(command.edgeId)
+      const nextLane = toLane(state.player.laneTarget - 1)
+      if (nextLane !== state.player.laneTarget) {
+        state.player.laneTarget = nextLane
+        pushEvent(state, 'lane')
       }
-
-      pushEvent(state, 'pin')
-      recalculateRoute(state)
-      beginNextTraversal(state)
       return
     }
 
-    case 'UseAbility': {
-      activateAbility(state, command.abilityId)
+    case 'MoveRight': {
+      if (state.run.status !== 'running') {
+        return
+      }
+
+      if (isTurnWindowOpen(state)) {
+        queueTurn(state, 1)
+        return
+      }
+
+      const nextLane = toLane(state.player.laneTarget + 1)
+      if (nextLane !== state.player.laneTarget) {
+        state.player.laneTarget = nextLane
+        pushEvent(state, 'lane')
+      }
+      return
+    }
+
+    case 'Jump': {
+      if (state.run.status !== 'running') {
+        return
+      }
+
+      const grounded = state.player.height <= 0.01
+      if (grounded && state.player.slideRemaining <= 0) {
+        state.player.verticalVelocity = RUNNER_BALANCE.jumpVelocity
+        pushEvent(state, 'jump')
+      }
+      return
+    }
+
+    case 'Slide': {
+      if (state.run.status !== 'running') {
+        return
+      }
+
+      const grounded = state.player.height <= 0.1
+      if (grounded && state.player.slideRemaining <= 0) {
+        state.player.slideRemaining = RUNNER_BALANCE.slideDuration
+        pushEvent(state, 'slide')
+      }
       return
     }
 
@@ -239,189 +150,191 @@ const processCommands = (state: GameState): void => {
   }
 }
 
-const tickAbilityTimers = (state: GameState, dt: number): void => {
-  for (const key of Object.keys(state.abilities) as AbilityId[]) {
-    const ability = state.abilities[key]
-    ability.cooldownRemaining = Math.max(0, ability.cooldownRemaining - dt)
-    ability.activeRemaining = Math.max(0, ability.activeRemaining - dt)
-  }
-}
-
-const tickCongestion = (state: GameState, dt: number): void => {
-  for (const edge of state.level.edges) {
-    if (!edge.tags.includes('congestion')) {
-      continue
-    }
-
-    const current = state.world.congestionByEdgeId[edge.id] ?? 0
-    const movingOnThisEdge = state.packet.traversal?.edgeId === edge.id
-
-    const next = clamp(
-      current +
-        GAME_BALANCE.congestionGlobalGrowthPerSecond * dt +
-        (movingOnThisEdge ? GAME_BALANCE.congestionTravelGrowthPerSecond * dt : 0) -
-        GAME_BALANCE.congestionDecayPerSecond * dt,
-      0,
-      2.4,
-    )
-
-    state.world.congestionByEdgeId[edge.id] = next
-  }
-}
-
-const updateDetection = (state: GameState, dt: number): void => {
-  const packetPosition = getPacketWorldPosition(state)
-
-  state.world.detectionLevel = Math.max(
-    0,
-    state.world.detectionLevel - GAME_BALANCE.detectionDecayPerSecond * dt,
+const tickPlayerMotion = (state: GameState, dt: number): void => {
+  state.player.lanePosition = lerp(
+    state.player.lanePosition,
+    state.player.laneTarget,
+    Math.min(1, dt * 12),
   )
 
-  for (const sniffer of state.level.sniffers) {
-    const snifferNode = getNodeById(state, sniffer.nodeId)
-    if (!snifferNode) {
-      continue
+  state.player.invulnerableRemaining = Math.max(
+    0,
+    state.player.invulnerableRemaining - dt,
+  )
+  state.player.slideRemaining = Math.max(0, state.player.slideRemaining - dt)
+
+  state.player.verticalVelocity += RUNNER_BALANCE.gravity * dt
+  state.player.height += state.player.verticalVelocity * dt
+
+  if (state.player.height <= 0) {
+    state.player.height = 0
+    if (state.player.verticalVelocity < 0) {
+      state.player.verticalVelocity = 0
     }
-
-    const distance = distance3(packetPosition, snifferNode.position)
-    if (distance > sniffer.radius) {
-      continue
-    }
-
-    const phase = state.timeSeconds * sniffer.sweepSpeed + sniffer.phaseOffset
-    const activity = (Math.sin(phase) + 1) / 2
-    if (activity < 0.45) {
-      continue
-    }
-
-    let gain = GAME_BALANCE.detectionGainPerSecond * activity
-    if (isAbilityActive(state, 'decoy')) {
-      gain *= GAME_BALANCE.decoyDetectionMultiplier
-    }
-    if (isAbilityActive(state, 'burst')) {
-      gain *= GAME_BALANCE.burstDetectionMultiplier
-    }
-
-    const distanceFactor = clamp(1 - distance / sniffer.radius, 0.2, 1)
-    state.world.detectionLevel = clamp(
-      state.world.detectionLevel + gain * distanceFactor * dt,
-      0,
-      1.5,
-    )
-  }
-
-  state.world.pursuersActive = state.world.detectionLevel >= GAME_BALANCE.pursuerThreshold
-
-  if (state.world.pursuersActive) {
-    applyDamage(
-      state,
-      GAME_BALANCE.pursuerDamagePerSecond * state.world.detectionLevel * dt,
-    )
   }
 }
 
-const handleArrival = (state: GameState, nodeId: string): void => {
-  const node = getNodeById(state, nodeId)
-  if (!node) {
+const applyCollision = (state: GameState): void => {
+  if (state.player.invulnerableRemaining > 0) {
     return
   }
 
-  if (
-    node.type === 'checkpoint' &&
-    !state.world.visitedCheckpointIds.includes(nodeId)
-  ) {
-    state.world.visitedCheckpointIds.push(nodeId)
-  }
+  state.player.integrity = Math.max(0, state.player.integrity - 1)
+  state.player.invulnerableRemaining = RUNNER_BALANCE.collisionInvulnerability
+  state.run.collisions += 1
+  pushEvent(state, 'collision')
 
-  if (
-    state.level.collectibleNodeIds.includes(nodeId) &&
-    !state.world.collectedTokenNodeIds.includes(nodeId)
-  ) {
-    state.world.collectedTokenNodeIds.push(nodeId)
-    pushEvent(state, 'token')
-  }
-
-  if (nodeId === state.routing.destinationNodeId && state.routing.routeEdgeIds.length === 0) {
-    state.routing.destinationNodeId = null
-  }
-
-  if (nodeId === state.level.goalNodeId && hasAllRequiredCheckpoints(state)) {
-    state.run.status = 'success'
-    state.run.nextNetworkUnlocked = true
-    state.run.score = computeScore(state, true)
-    pushEvent(state, 'success')
-    return
-  }
-
-  // Keep path fresh after checkpoints alter objective urgency.
-  if (state.routing.destinationNodeId) {
-    recalculateRoute(state)
+  if (state.player.integrity <= 0) {
+    failRun(state, 'Packet integrity collapsed under network pressure.')
   }
 }
 
-const tickTraversal = (state: GameState, dt: number): void => {
-  const traversal = state.packet.traversal
-  if (!traversal) {
-    return
+const canBypassObstacle = (state: GameState, type: ObstacleType): boolean => {
+  if (type === 'firewall') {
+    return state.player.height > RUNNER_BALANCE.firewallClearHeight
   }
 
-  const edge = getEdgeById(state, traversal.edgeId)
-  if (!edge) {
-    state.packet.traversal = null
-    return
+  if (type === 'sniffer') {
+    return state.player.slideRemaining > 0
   }
 
-  let speedMultiplier = 1
-  if (isAbilityActive(state, 'burst')) {
-    speedMultiplier *= GAME_BALANCE.burstSpeedMultiplier
-  }
-  if (edge.tags.includes('latency')) {
-    speedMultiplier *= GAME_BALANCE.latencySpeedMultiplier
-    state.run.latencyPenalty += dt * 2.4
-  }
-  if (edge.tags.includes('congestion')) {
-    const congestion = state.world.congestionByEdgeId[edge.id] ?? 0
-    speedMultiplier *= 1 / (1 + congestion * GAME_BALANCE.congestionTravelSlowdown)
-    state.run.latencyPenalty += dt * (1 + congestion * 1.3)
-  }
+  return false
+}
 
-  if (edge.tags.includes('firewall') && !isAbilityActive(state, 'encrypt')) {
-    applyDamage(state, GAME_BALANCE.firewallDamagePerSecond * dt)
+const resolveTokens = (state: GameState): void => {
+  for (const token of state.tokens) {
+    if (token.collected) {
+      continue
+    }
+
+    if (token.tileIndex < state.track.currentTileIndex) {
+      token.collected = true
+      continue
+    }
+
+    if (token.tileIndex !== state.track.currentTileIndex) {
+      continue
+    }
+
+    const laneAligned =
+      Math.abs(state.player.lanePosition - token.lane) <= RUNNER_BALANCE.laneTolerance
+    const distanceDelta = Math.abs(token.offset - state.track.distanceInTile)
+
+    if (laneAligned && distanceDelta <= RUNNER_BALANCE.tokenPickupWindow) {
+      token.collected = true
+      state.run.tokens += 1
+      state.run.score += RUNNER_BALANCE.tokenScore
+      pushEvent(state, 'token')
+    }
   }
+}
 
-  const traversalDuration = Math.max(0.05, edge.baseCost / Math.max(0.2, speedMultiplier))
-  traversal.progress += dt / traversalDuration
+const resolveObstacles = (state: GameState): void => {
+  for (const obstacle of state.obstacles) {
+    if (obstacle.resolved) {
+      continue
+    }
 
-  if (traversal.progress < 1) {
-    return
+    if (obstacle.tileIndex < state.track.currentTileIndex) {
+      obstacle.resolved = true
+      continue
+    }
+
+    if (obstacle.tileIndex !== state.track.currentTileIndex) {
+      continue
+    }
+
+    const laneAligned =
+      Math.abs(state.player.lanePosition - obstacle.lane) <= RUNNER_BALANCE.laneTolerance
+    if (!laneAligned) {
+      continue
+    }
+
+    const distanceDelta = obstacle.offset - state.track.distanceInTile
+
+    if (distanceDelta < -RUNNER_BALANCE.obstacleHitWindow) {
+      obstacle.resolved = true
+      continue
+    }
+
+    if (Math.abs(distanceDelta) <= RUNNER_BALANCE.obstacleHitWindow) {
+      obstacle.resolved = true
+      if (!canBypassObstacle(state, obstacle.type)) {
+        applyCollision(state)
+      }
+    }
   }
+}
 
-  state.packet.currentNodeId = traversal.toNodeId
-  state.packet.traversal = null
+const advanceTrack = (state: GameState, distance: number): void => {
+  let remaining = distance
 
-  handleArrival(state, traversal.toNodeId)
-  beginNextTraversal(state)
+  while (remaining > 0 && state.run.status === 'running') {
+    const tile = getCurrentTile(state)
+    const distanceToBoundary = tile.length - state.track.distanceInTile
+
+    if (remaining < distanceToBoundary) {
+      state.track.distanceInTile += remaining
+      remaining = 0
+      continue
+    }
+
+    state.track.distanceInTile = tile.length
+    remaining -= distanceToBoundary
+
+    if (tile.requiredTurn) {
+      if (state.track.queuedTurn !== tile.requiredTurn) {
+        failRun(state, 'Missed the junction turn. Packet dropped into a dead route.')
+        return
+      }
+
+      state.run.score += RUNNER_BALANCE.turnScore
+      pushEvent(state, 'turn')
+      state.track.queuedTurn = 0
+    }
+
+    state.track.currentTileIndex += 1
+    state.track.distanceInTile = 0
+    ensureTrackAhead(state)
+  }
 }
 
 export const stepSimulation = (state: GameState, dtSeconds: number): void => {
-  const dt = clamp(dtSeconds, 0, GAME_BALANCE.maxFrameSeconds)
+  const dt = clamp(dtSeconds, 0, RUNNER_BALANCE.maxFrameSeconds)
 
   processCommands(state)
 
-  if (state.run.status === 'running') {
-    state.timeSeconds += dt
-    state.run.elapsedSeconds += dt
-
-    tickAbilityTimers(state, dt)
-    tickCongestion(state, dt)
-    tickTraversal(state, dt)
-    beginNextTraversal(state)
-    updateDetection(state, dt)
+  if (state.run.status !== 'running') {
+    state.track.decisionOpen = false
+    return
   }
 
-  if (state.run.status === 'failed') {
-    state.routing.destinationNodeId = null
-    state.routing.routeNodeIds = [state.packet.currentNodeId]
-    state.routing.routeEdgeIds = []
+  state.timeSeconds += dt
+  state.run.elapsedSeconds += dt
+
+  tickPlayerMotion(state, dt)
+
+  state.run.speed = Math.min(
+    RUNNER_BALANCE.maxSpeed,
+    RUNNER_BALANCE.baseSpeed + state.run.elapsedSeconds * RUNNER_BALANCE.speedAcceleration,
+  )
+  state.run.topSpeed = Math.max(state.run.topSpeed, state.run.speed)
+
+  const distanceStep = state.run.speed * dt
+  state.run.distance += distanceStep
+  state.run.score += distanceStep * RUNNER_BALANCE.distanceScoreRate
+
+  advanceTrack(state, distanceStep)
+
+  if (state.run.status !== 'running') {
+    state.track.decisionOpen = false
+    return
   }
+
+  state.track.decisionOpen = isTurnWindowOpen(state)
+
+  resolveTokens(state)
+  resolveObstacles(state)
+
+  state.run.score = Math.max(0, state.run.score)
 }

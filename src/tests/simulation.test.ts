@@ -1,104 +1,139 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialGameState } from '../game/core/state'
-import { computeScore, stepSimulation } from '../game/core/simulation'
+import { stepSimulation } from '../game/core/simulation'
 import type { GameState } from '../shared/types'
 
-const runForSeconds = (state: GameState, seconds: number) => {
+const stepForSeconds = (state: GameState, seconds: number) => {
   const dt = 1 / 60
   const steps = Math.ceil(seconds / dt)
-  for (let step = 0; step < steps; step += 1) {
+  for (let index = 0; index < steps; index += 1) {
     stepSimulation(state, dt)
   }
 }
 
-describe('simulation abilities and hazards', () => {
-  it('enforces ability cooldown lifecycle', () => {
+describe('runner controls', () => {
+  it('moves between lanes with left/right commands', () => {
     const state = createInitialGameState()
 
-    state.commandQueue.push({ type: 'UseAbility', abilityId: 'encrypt' })
+    state.commandQueue.push({ type: 'MoveRight' })
     stepSimulation(state, 1 / 60)
+    expect(state.player.laneTarget).toBe(1)
 
-    expect(state.abilities.encrypt.activeRemaining).toBeGreaterThan(3.8)
-    expect(state.abilities.encrypt.cooldownRemaining).toBeGreaterThan(13)
-
-    runForSeconds(state, 4.5)
-    expect(state.abilities.encrypt.activeRemaining).toBe(0)
-    expect(state.abilities.encrypt.cooldownRemaining).toBeGreaterThan(0)
-
-    state.commandQueue.push({ type: 'UseAbility', abilityId: 'encrypt' })
+    state.commandQueue.push({ type: 'MoveLeft' })
     stepSimulation(state, 1 / 60)
-    expect(state.abilities.encrypt.activeRemaining).toBe(0)
-
-    runForSeconds(state, 10)
-    state.commandQueue.push({ type: 'UseAbility', abilityId: 'encrypt' })
-    stepSimulation(state, 1 / 60)
-    expect(state.abilities.encrypt.activeRemaining).toBeGreaterThan(3.8)
+    expect(state.player.laneTarget).toBe(0)
   })
 
-  it('reduces firewall damage while encrypt is active', () => {
-    const baseline = createInitialGameState()
-    baseline.packet.currentNodeId = 'n_a'
-    baseline.packet.traversal = {
-      edgeId: 'e_a_b',
-      fromNodeId: 'n_a',
-      toNodeId: 'n_b',
-      progress: 0.1,
-    }
-
-    const encrypted = createInitialGameState()
-    encrypted.packet.currentNodeId = 'n_a'
-    encrypted.packet.traversal = {
-      edgeId: 'e_a_b',
-      fromNodeId: 'n_a',
-      toNodeId: 'n_b',
-      progress: 0.1,
-    }
-    encrypted.abilities.encrypt.activeRemaining = 2
-    encrypted.abilities.encrypt.cooldownRemaining = 8
-
-    runForSeconds(baseline, 0.8)
-    runForSeconds(encrypted, 0.8)
-
-    const baselineDamage = 100 - baseline.packet.integrity
-    const encryptedDamage = 100 - encrypted.packet.integrity
-
-    expect(baselineDamage).toBeGreaterThan(5)
-    expect(encryptedDamage).toBeLessThan(baselineDamage * 0.5)
-  })
-
-  it('updates destination and reroute stats during live run', () => {
+  it('handles jump arc and returns to ground', () => {
     const state = createInitialGameState()
 
-    state.commandQueue.push({ type: 'SetDestination', nodeId: 'n_c' })
+    state.commandQueue.push({ type: 'Jump' })
     stepSimulation(state, 1 / 60)
+    expect(state.player.height).toBeGreaterThan(0)
 
-    expect(state.routing.destinationNodeId).toBe('n_c')
-    expect(state.run.rerouteCount).toBe(0)
+    stepForSeconds(state, 1.2)
+    expect(state.player.height).toBe(0)
+    expect(state.player.verticalVelocity).toBe(0)
+  })
 
-    runForSeconds(state, 0.5)
-    state.commandQueue.push({ type: 'SetDestination', nodeId: 'n_i' })
-    stepSimulation(state, 1 / 60)
+  it('fails when required turn is missed', () => {
+    const state = createInitialGameState()
 
-    expect(state.routing.destinationNodeId).toBe('n_i')
-    expect(state.run.rerouteCount).toBe(1)
-    expect(state.routing.routeNodeIds.length).toBeGreaterThan(0)
+    state.track.tiles = [
+      {
+        id: 0,
+        start: [0, 0, 0],
+        heading: 0,
+        length: 2,
+        requiredTurn: 1,
+      },
+      {
+        id: 1,
+        start: [0, 0, 2],
+        heading: 1,
+        length: 2,
+        requiredTurn: null,
+      },
+    ]
+    state.track.currentTileIndex = 0
+    state.track.distanceInTile = 1.92
+    state.run.speed = 10
+
+    stepSimulation(state, 0.1)
+
+    expect(state.run.status).toBe('failed')
+    expect(state.run.failureReason).toContain('Missed the junction turn')
+  })
+
+  it('survives a required turn when queued in time', () => {
+    const state = createInitialGameState()
+
+    state.track.tiles = [
+      {
+        id: 0,
+        start: [0, 0, 0],
+        heading: 0,
+        length: 2,
+        requiredTurn: -1,
+      },
+      {
+        id: 1,
+        start: [0, 0, 2],
+        heading: 3,
+        length: 2,
+        requiredTurn: null,
+      },
+    ]
+    state.track.currentTileIndex = 0
+    state.track.distanceInTile = 1.92
+    state.run.speed = 10
+
+    state.commandQueue.push({ type: 'MoveLeft' })
+    stepSimulation(state, 0.1)
+
+    expect(state.run.status).toBe('running')
+    expect(state.track.currentTileIndex).toBe(1)
   })
 })
 
-describe('scoring', () => {
-  it('is deterministic for identical run data', () => {
+describe('runner interactions', () => {
+  it('collects tokens and adds score', () => {
     const state = createInitialGameState()
-    state.run.elapsedSeconds = 47.5
-    state.run.latencyPenalty = 9.2
-    state.run.rerouteCount = 0
-    state.run.tookDamage = false
-    state.world.collectedTokenNodeIds = ['n_f', 'n_i']
-    state.packet.integrity = 78
 
-    const scoreA = computeScore(state, true)
-    const scoreB = computeScore(state, true)
+    state.tokens = [
+      {
+        id: 1,
+        tileIndex: state.track.currentTileIndex,
+        lane: 0,
+        offset: state.track.distanceInTile + 0.08,
+        collected: false,
+      },
+    ]
 
-    expect(scoreA).toEqual(scoreB)
-    expect(scoreA.challenges.speedrun).toBe(true)
+    const scoreBefore = state.run.score
+    stepSimulation(state, 1 / 60)
+
+    expect(state.run.tokens).toBe(1)
+    expect(state.run.score).toBeGreaterThan(scoreBefore)
+  })
+
+  it('reduces integrity when hitting congestion obstacle', () => {
+    const state = createInitialGameState()
+
+    state.obstacles = [
+      {
+        id: 1,
+        tileIndex: state.track.currentTileIndex,
+        lane: 0,
+        offset: state.track.distanceInTile + 0.06,
+        type: 'congestion',
+        resolved: false,
+      },
+    ]
+
+    stepSimulation(state, 1 / 60)
+
+    expect(state.player.integrity).toBe(2)
+    expect(state.run.collisions).toBe(1)
   })
 })

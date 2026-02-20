@@ -1,77 +1,58 @@
 # Signal Runner
 
-Signal Runner is a single-player browser game where you pilot a data packet through a hostile 3D network. You do not steer with WASD; you manage the route in real time.
+Signal Runner is a single-player browser game inspired by Temple Run, re-themed as a packet escaping through a hostile 3D network.
 
-## Core Gameplay
+## Gameplay
 
-1. Click a node to set destination.
-2. The packet moves automatically along the computed route.
-3. Hazards activate (firewalls, sniffers, latency zones, congestion).
-4. Reroute or pin safer links while using abilities.
-5. Reach the target server with high integrity and low latency.
+- Continuous forward movement through a procedural network corridor
+- 3-lane runner controls with forced turn junctions
+- High-speed risk management with reactive movement
 
-## Abilities
+Core actions:
 
-- `Encrypt (Q)`: temporary damage reduction and safer firewall traversal.
-- `Decoy (W)`: lowers scanner pressure and detection gain.
-- `Burst (E)`: short speed boost with higher detection risk.
+- Left / Right: lane shift or junction turn
+- Up / Space: jump firewall gates
+- Down: slide under sniffer beams
 
-## Hazards
+## Hazards and Rewards
 
-- Firewalls: damage packet traversal unless mitigated.
-- Sniffers: scan nearby space and increase detection.
-- Latency links: slow movement and increase time penalty.
-- Congestion links: dynamic cost growth over time.
+Hazards:
 
-## Scoring
+- Firewall gates (jump)
+- Sniffer beams (slide)
+- Congestion blocks (lane avoid)
 
-Run score combines:
+Rewards:
 
-- Completion base score
-- Time/latency performance
-- Remaining packet integrity
-- Collected tokens
-- Challenge bonuses (`no damage`, `no reroutes`, `speedrun`)
+- Token pickups
+- Distance survival scoring
+- Turn execution bonuses
 
 ## Tech Stack
 
 - React 19 + TypeScript + Vite
-- Three.js with React Three Fiber (`@react-three/fiber`, `@react-three/drei`)
+- Three.js + React Three Fiber + Drei
 - Postprocessing FX (`@react-three/postprocessing`)
-- Zustand + Immer for simulation/state updates
-- Vitest + Testing Library for unit/integration tests
-- Playwright for browser smoke tests
+- Zustand + Immer for deterministic game-state updates
+- Vitest for gameplay logic tests
+- Playwright smoke test scaffold
 
-## Project Scripts
+## Scripts
 
-- `npm run dev`: start local dev server
-- `npm run lint`: run ESLint
-- `npm run test`: run Vitest in watch mode
-- `npm run test:run`: run Vitest once
-- `npm run typecheck`: run TypeScript project checks
-- `npm run build`: typecheck + production build
-- `npm run preview`: preview production build
-- `npm run e2e`: run Playwright smoke test
+- `npm run dev` - start development server
+- `npm run lint` - run ESLint
+- `npm run test` - run Vitest watch mode
+- `npm run test:run` - run Vitest once
+- `npm run typecheck` - run TypeScript checks
+- `npm run build` - create production build
+- `npm run preview` - preview production build
+- `npm run e2e` - run Playwright smoke test
 
-## Running Locally
+## Run Locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the local Vite URL printed in the terminal.
-
-## Current Status
-
-Vertical-slice foundation is implemented:
-
-- Playable Network 01 level
-- Real-time routing + link pinning
-- Hazards and ability cooldown systems
-- HUD, scoring, run summary
-- Deterministic simulation core with tests
-
-## License
-
-No license file is currently defined for this repository.
+Open the Vite URL shown in terminal output.

@@ -1,73 +1,77 @@
-# React + TypeScript + Vite
+# Signal Runner
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Signal Runner is a single-player browser game where you pilot a data packet through a hostile 3D network. You do not steer with WASD; you manage the route in real time.
 
-Currently, two official plugins are available:
+## Core Gameplay
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. Click a node to set destination.
+2. The packet moves automatically along the computed route.
+3. Hazards activate (firewalls, sniffers, latency zones, congestion).
+4. Reroute or pin safer links while using abilities.
+5. Reach the target server with high integrity and low latency.
 
-## React Compiler
+## Abilities
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `Encrypt (Q)`: temporary damage reduction and safer firewall traversal.
+- `Decoy (W)`: lowers scanner pressure and detection gain.
+- `Burst (E)`: short speed boost with higher detection risk.
 
-## Expanding the ESLint configuration
+## Hazards
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Firewalls: damage packet traversal unless mitigated.
+- Sniffers: scan nearby space and increase detection.
+- Latency links: slow movement and increase time penalty.
+- Congestion links: dynamic cost growth over time.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Scoring
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Run score combines:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Completion base score
+- Time/latency performance
+- Remaining packet integrity
+- Collected tokens
+- Challenge bonuses (`no damage`, `no reroutes`, `speedrun`)
+
+## Tech Stack
+
+- React 19 + TypeScript + Vite
+- Three.js with React Three Fiber (`@react-three/fiber`, `@react-three/drei`)
+- Postprocessing FX (`@react-three/postprocessing`)
+- Zustand + Immer for simulation/state updates
+- Vitest + Testing Library for unit/integration tests
+- Playwright for browser smoke tests
+
+## Project Scripts
+
+- `npm run dev`: start local dev server
+- `npm run lint`: run ESLint
+- `npm run test`: run Vitest in watch mode
+- `npm run test:run`: run Vitest once
+- `npm run typecheck`: run TypeScript project checks
+- `npm run build`: typecheck + production build
+- `npm run preview`: preview production build
+- `npm run e2e`: run Playwright smoke test
+
+## Running Locally
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open the local Vite URL printed in the terminal.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Current Status
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Vertical-slice foundation is implemented:
+
+- Playable Network 01 level
+- Real-time routing + link pinning
+- Hazards and ability cooldown systems
+- HUD, scoring, run summary
+- Deterministic simulation core with tests
+
+## License
+
+No license file is currently defined for this repository.

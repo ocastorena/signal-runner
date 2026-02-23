@@ -1,11 +1,11 @@
-import { Suspense, useState } from "react"
+import { Suspense, lazy, useState } from "react"
 import "./App.css"
 import { MainMenu } from "@/game/MainMenu"
 
-// const GameView = lazy(async () => {
-//   const module = await import("@/game/GameView")
-//   return { default: module.GameView }
-// })
+const GameView = lazy(async () => {
+  const module = await import("@/game/GameView")
+  return { default: module.GameView }
+})
 
 type Screen = "menu" | "game"
 
@@ -18,9 +18,9 @@ const App = () => {
 
   return (
     <Suspense
-      fallback={
-        <div className="app-loading">Loading Signal Runner...</div>
-      }></Suspense>
+      fallback={<div className="app-loading">Loading Signal Runner...</div>}>
+      <GameView />
+    </Suspense>
   )
 }
 
